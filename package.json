@@ -1,0 +1,32 @@
+{
+  "name": "opencode-new-thread",
+  "version": "1.0.0",
+  "description": "OpenCode plugin that adds a new_thread tool for forking parallel sessions",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "opencode-new-thread": "./dist/install.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "new-thread",
+    "session"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^7.0.2"
+  }
+}
