@@ -5,7 +5,7 @@ An [opencode](https://opencode.ai) plugin that lets the AI fork off parallel ses
 ## Install
 
 ```bash
-npm install -g opencode-new-thread
+bun install -g opencode-new-thread
 opencode-new-thread
 ```
 
@@ -27,7 +27,7 @@ Once loaded, the AI can call `new_thread` with:
 ## Requirements
 
 - [opencode](https://opencode.ai)
-- [Bun](https://bun.sh) (used by opencode to install plugin dependencies)
+- [Bun](https://bun.sh) (used by opencode (and you) to install plugin dependencies)
 
 ## License
 
