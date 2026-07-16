@@ -57,7 +57,7 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
               query: { directory: dir },
             })
           } catch (e) {
-            throw new Error(`Created thread "${title}" (${id}) but initial prompt failed: ${e}`)
+            console.warn(`[opencode-new-thread] Created thread "${title}" (${id}) but initial prompt may have failed: ${e}`)
           }
 
           return `Created new thread: "${title}" (id: ${id})`
