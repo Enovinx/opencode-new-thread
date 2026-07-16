@@ -31,4 +31,4 @@ Once loaded, the AI can call `new_thread` with:
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE)
+Apache 2.0, see [LICENSE](LICENSE)
