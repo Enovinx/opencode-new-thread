@@ -9,15 +9,6 @@ npm install -g opencode-new-thread
 opencode-new-thread
 ```
 
-The interactive installer lets you choose where to register the plugin:
-
-1. **Global plugins dir** (`~/.config/opencode/plugins/`) -- auto-loaded for every project, zero config
-2. **Project plugins dir** (`.opencode/plugins/`) -- scoped to the current project
-3. **Global config** (`~/.config/opencode/opencode.json`) -- loaded for all projects via config
-4. **Project config** (`opencode.json`) -- loaded for this project only
-
-It checks the selected destination for existing installations and warns before overwriting.
-
 ### Manual setup
 
 Place the plugin files into your project's `.opencode/plugins/new-thread.ts` and add `@opencode-ai/plugin` to `.opencode/package.json`. OpenCode runs `bun install` at startup to resolve dependencies.
@@ -35,7 +26,7 @@ Once loaded, the AI can call `new_thread` with:
 
 ## Requirements
 
-- [opencode](https://opencode.ai) with plugin support
+- [opencode](https://opencode.ai)
 - [Bun](https://bun.sh) (used by opencode to install plugin dependencies)
 
 ## License
