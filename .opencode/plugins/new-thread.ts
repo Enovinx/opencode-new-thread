@@ -1,4 +1,5 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
+import type { UserMessage, AssistantMessage } from "@opencode-ai/sdk"
 
 export const NewThreadPlugin: Plugin = async ({ client }) => {
   return {
@@ -22,10 +23,10 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
               const msgsData = msgs.data ?? msgs
               const last = Array.isArray(msgsData) ? msgsData[msgsData.length - 1] : msgsData
               if (last?.info?.role === "user") {
-                const m = (last.info as any).model
+                const m = (last.info as UserMessage).model
                 if (m?.providerID && m?.modelID) model = m
               } else if (last?.info?.role === "assistant") {
-                const info = last.info as any
+                const info = last.info as AssistantMessage
                 if (info.providerID && info.modelID) model = { providerID: info.providerID, modelID: info.modelID }
               }
             } catch {}

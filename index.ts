@@ -1,4 +1,5 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
+import type { UserMessage, AssistantMessage } from "@opencode-ai/sdk"
 
 export const NewThreadPlugin: Plugin = async ({ client }) => {
   return {
@@ -25,10 +26,10 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
               const msgsData = "data" in msgs ? msgs.data : msgs
               const last = Array.isArray(msgsData) ? msgsData[msgsData.length - 1] : msgsData
               if (last && "info" in last && last.info?.role === "user") {
-                const m = (last.info as any).model
+                const m = (last.info as UserMessage).model
                 if (m?.providerID && m?.modelID) model = m
               } else if (last && "info" in last && last.info?.role === "assistant") {
-                const info = last.info as any
+                const info = last.info as AssistantMessage
                 if (info.providerID && info.modelID) model = { providerID: info.providerID, modelID: info.modelID }
               }
             } catch (e) {
@@ -41,10 +42,9 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
             body: { title: args.title || "New thread" },
             query: { directory: dir },
           })
-          const resData = "data" in res ? res.data : res
-          if (!resData) throw new Error("Session API returned an empty response")
-          const id = (resData as any)?.id
-          const title = (resData as any)?.title
+          const session = res.data
+          if (!session) throw new Error("Session API returned an empty response")
+          const { id, title } = session
           if (!id) throw new Error("Session API did not return a session id")
 
           try {

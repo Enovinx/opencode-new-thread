@@ -1,11 +1,11 @@
 {
   "name": "opencode-new-thread",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "OpenCode plugin that adds a new_thread tool for forking parallel sessions",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "opencode-new-thread": "./dist/install.js"
+    "opencode-new-thread": "dist/install.js"
   },
   "files": [
     "dist"
