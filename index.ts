@@ -46,6 +46,7 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
           if (!session) throw new Error("Session API returned an empty response")
           const { id, title } = session
           if (!id) throw new Error("Session API did not return a session id")
+          if (!args.prompt) throw new Error("prompt is required")
 
           try {
             await client.session.prompt({

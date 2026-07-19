@@ -9,10 +9,6 @@ bun install -g opencode-new-thread
 opencode-new-thread
 ```
 
-### Manual setup
-
-Place the plugin files into your project's `.opencode/plugins/new-thread.ts` and add `@opencode-ai/plugin` to `.opencode/package.json`. OpenCode runs `bun install` at startup to resolve dependencies.
-
 ## Usage
 
 Once loaded, the AI can call `new_thread` with:
