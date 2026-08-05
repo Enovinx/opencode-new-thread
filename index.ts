@@ -49,7 +49,7 @@ export const NewThreadPlugin: Plugin = async ({ client }) => {
           if (!args.prompt) throw new Error("prompt is required")
 
           try {
-            await client.session.prompt({
+            await client.session.promptAsync({
               path: { id },
               body: {
                 parts: [{ type: "text", text: args.prompt }],
