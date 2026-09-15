@@ -22,8 +22,10 @@ Once loaded, the AI can call `new_thread` with:
 
 ## Requirements
 
-- [opencode](https://opencode.ai)
+- [opencode](https://opencode.ai) v1 (`1.18.29+` for the object-form plugin) or v2 (`beta`, see https://opencode.ai/v2/docs/build/plugins/)
 - [Bun](https://bun.sh) (used by opencode (and you) to install plugin dependencies)
+
+The same install supports both: the plugin exports V1 `server()` and V2 `setup()` from one entrypoint, and the installer writes both `plugin` and `plugins` config keys and refreshes both `.opencode/plugins/` and `.opencode/plugin/` copies plus `opencode.jsonc`.
 
 ## License
 

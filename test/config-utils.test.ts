@@ -14,6 +14,30 @@ describe("pluginInConfig", () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it("detects plugin under v2 plugins key", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "test-"))
+    const cfgPath = join(dir, "opencode.json")
+    await writeFile(cfgPath, JSON.stringify({ plugins: [PKG_NAME] }))
+    assert.equal(await pluginInConfig(cfgPath), true)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it("detects object-form entries", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "test-"))
+    const cfgPath = join(dir, "opencode.json")
+    await writeFile(cfgPath, JSON.stringify({ plugins: [{ package: PKG_NAME, options: {} }] }))
+    assert.equal(await pluginInConfig(cfgPath), true)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it("detects entries in jsonc with comments", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "test-"))
+    const cfgPath = join(dir, "opencode.jsonc")
+    await writeFile(cfgPath, `{\n// comment\n"plugins": ["${PKG_NAME}"]\n}`)
+    assert.equal(await pluginInConfig(cfgPath), true)
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it("returns false for missing plugin key", async () => {
     const dir = await mkdtemp(join(tmpdir(), "test-"))
     const cfgPath = join(dir, "opencode.json")
@@ -35,6 +59,7 @@ describe("addToConfig", () => {
     const raw = await readFile(cfgPath, "utf-8")
     const cfg = JSON.parse(raw)
     assert.deepEqual(cfg.plugin, [PKG_NAME])
+    assert.deepEqual(cfg.plugins, [PKG_NAME])
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -46,17 +71,30 @@ describe("addToConfig", () => {
     const raw = await readFile(cfgPath, "utf-8")
     const cfg = JSON.parse(raw)
     assert.deepEqual(cfg.plugin, ["other-plugin", PKG_NAME])
+    assert.deepEqual(cfg.plugins, [PKG_NAME])
     await rm(dir, { recursive: true, force: true })
   })
 
   it("does not duplicate plugin", async () => {
     const dir = await mkdtemp(join(tmpdir(), "test-"))
     const cfgPath = join(dir, "opencode.json")
-    await writeFile(cfgPath, JSON.stringify({ plugin: [PKG_NAME] }))
+    await writeFile(cfgPath, JSON.stringify({ plugin: [PKG_NAME], plugins: [PKG_NAME] }))
     await addToConfig(cfgPath)
     const raw = await readFile(cfgPath, "utf-8")
     const cfg = JSON.parse(raw)
     assert.deepEqual(cfg.plugin, [PKG_NAME])
+    assert.deepEqual(cfg.plugins, [PKG_NAME])
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it("backfills the missing key when only one exists", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "test-"))
+    const cfgPath = join(dir, "opencode.json")
+    await writeFile(cfgPath, JSON.stringify({ plugins: [PKG_NAME] }))
+    await addToConfig(cfgPath)
+    const cfg = JSON.parse(await readFile(cfgPath, "utf-8"))
+    assert.deepEqual(cfg.plugin, [PKG_NAME])
+    assert.deepEqual(cfg.plugins, [PKG_NAME])
     await rm(dir, { recursive: true, force: true })
   })
 })

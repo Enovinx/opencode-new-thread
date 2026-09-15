@@ -13,18 +13,65 @@ const PACKAGE_ROOT = dirname(__filename)
 const GLOBAL_DIR = join(homedir(), ".config", "opencode")
 const GLOBAL_PLUGINS_DIR = join(GLOBAL_DIR, "plugins")
 const GLOBAL_CONFIG = join(GLOBAL_DIR, "opencode.json")
+const GLOBAL_CONFIG_JSONC = join(GLOBAL_DIR, "opencode.jsonc")
 const PROJECT_DIR = process.env.INIT_CWD || process.cwd()
 const PROJECT_PLUGIN_FILE = join(PROJECT_DIR, ".opencode", "plugins", "new-thread.ts")
+const PROJECT_PLUGIN_FILE_SINGULAR = join(PROJECT_DIR, ".opencode", "plugin", "new-thread.ts")
 const PROJECT_PACKAGE_JSON = join(PROJECT_DIR, ".opencode", "package.json")
 const PROJECT_CONFIG = join(PROJECT_DIR, "opencode.json")
+const PROJECT_CONFIG_JSONC = join(PROJECT_DIR, "opencode.jsonc")
+const PROJECT_NESTED_CONFIG = join(PROJECT_DIR, ".opencode", "opencode.json")
+const PROJECT_NESTED_CONFIG_JSONC = join(PROJECT_DIR, ".opencode", "opencode.jsonc")
 const REGISTRY_DIR = join(GLOBAL_DIR, ".opencode-new-thread")
 const REGISTRY_FILE = join(REGISTRY_DIR, "installs.json")
 const CACHE_PKG_DIR = join(homedir(), ".cache", "opencode", "packages", "opencode-new-thread")
+const CACHE_NODE_MODULES_DIR = join(homedir(), ".cache", "opencode", "node_modules")
 const PKG_NAME = "opencode-new-thread"
-// Prefer the TypeScript source during development; the published package only ships dist/.
-const PLUGIN_SOURCE = existsSync(join(PACKAGE_ROOT, "index.ts"))
-  ? join(PACKAGE_ROOT, "index.ts")
-  : join(PACKAGE_ROOT, "index.js")
+const V1_DEP = "@opencode-ai/plugin"
+const V1_DEP_RANGE = "^1.0.0"
+const V2_DEP = "@opencode/plugin"
+const V2_DEP_RANGE = "beta"
+// Prefer the built output when present so file installs always ship both
+// the V1 (server) and V2 (setup) implementations; fall back to source.
+const PLUGIN_SOURCE = existsSync(join(PACKAGE_ROOT, "dist", "index.js"))
+  ? join(PACKAGE_ROOT, "dist", "index.js")
+  : existsSync(join(PACKAGE_ROOT, "index.ts"))
+    ? join(PACKAGE_ROOT, "index.ts")
+    : join(PACKAGE_ROOT, "index.js")
+
+export function legacyPluginFiles(projectDir: string = PROJECT_DIR) {
+  return [
+    join(GLOBAL_PLUGINS_DIR, "new-thread.ts"),
+    join(projectDir, ".opencode", "plugins", "new-thread.ts"),
+    join(projectDir, ".opencode", "plugin", "new-thread.ts"),
+  ]
+}
+
+export function configPaths(projectDir: string = PROJECT_DIR) {
+  return [
+    join(GLOBAL_DIR, "opencode.json"),
+    join(GLOBAL_DIR, "opencode.jsonc"),
+    join(projectDir, "opencode.json"),
+    join(projectDir, "opencode.jsonc"),
+    join(projectDir, ".opencode", "opencode.json"),
+    join(projectDir, ".opencode", "opencode.jsonc"),
+  ]
+}
+
+export function stripJsonc(raw: string) {
+  return raw
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/[^\n\r]*/g, "$1")
+}
+
+export function configEntryMatches(entry: unknown) {
+  if (typeof entry === "string") return entry === PKG_NAME
+  if (Array.isArray(entry)) return entry[0] === PKG_NAME
+  if (entry && typeof entry === "object") {
+    return (entry as Record<string, unknown>).package === PKG_NAME
+  }
+  return false
+}
 
 let pipedAnswers: string[] | null = null
 
@@ -72,9 +119,22 @@ export async function fileExists(p: string) {
 export async function pluginInConfig(configPath: string) {
   try {
     const raw = await readFile(configPath, "utf-8")
-    const plugins: string[] = JSON.parse(raw).plugin ?? []
-    return plugins.includes(PKG_NAME)
+    let cfg: Record<string, unknown>
+    try {
+      cfg = JSON.parse(raw)
+    } catch {
+      cfg = JSON.parse(stripJsonc(raw))
+    }
+    const lists = [cfg.plugin, cfg.plugins].filter(Array.isArray)
+    return lists.some((list) => (list as unknown[]).some(configEntryMatches))
   } catch { return false }
+}
+
+export async function pluginInAnyConfig(paths?: string[]) {
+  for (const p of paths ?? configPaths()) {
+    if (await pluginInConfig(p)) return true
+  }
+  return false
 }
 
 export async function sha256File(p: string) {
@@ -123,28 +183,77 @@ export async function copyPluginTo(dest: string) {
   return true
 }
 
+export async function ensureDualDeps(pkgPath: string) {
+  try {
+    const raw = await readFile(pkgPath, "utf-8")
+    const pkg = JSON.parse(raw) as { dependencies?: Record<string, string> }
+    pkg.dependencies = pkg.dependencies ?? {}
+    let changed = false
+    if (!pkg.dependencies[V1_DEP]) { pkg.dependencies[V1_DEP] = V1_DEP_RANGE; changed = true }
+    if (!pkg.dependencies[V2_DEP]) { pkg.dependencies[V2_DEP] = V2_DEP_RANGE; changed = true }
+    if (changed) await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + "\n")
+    return changed
+  } catch { return false }
+}
+
+export function projectRootForPluginFile(pluginFile: string) {
+  const norm = pluginFile.replace(/\\/g, "/")
+  const markerPlural = "/.opencode/plugins/"
+  const markerSingular = "/.opencode/plugin/"
+  let idx = norm.lastIndexOf(markerPlural)
+  if (idx >= 0) return pluginFile.slice(0, idx)
+  idx = norm.lastIndexOf(markerSingular)
+  if (idx >= 0) return pluginFile.slice(0, idx)
+  return null
+}
+
 async function ensureProjectPackageJson() {
   if (!await fileExists(PROJECT_PACKAGE_JSON)) {
     await mkdir(dirname(PROJECT_PACKAGE_JSON), { recursive: true })
     await writeFile(PROJECT_PACKAGE_JSON, JSON.stringify({
-      dependencies: { "@opencode-ai/plugin": "^1.0.0" },
+      dependencies: { [V1_DEP]: V1_DEP_RANGE, [V2_DEP]: V2_DEP_RANGE },
     }, null, 2) + "\n")
     success(`Created ${PROJECT_PACKAGE_JSON}`)
+    return
+  }
+  try {
+    const raw = await readFile(PROJECT_PACKAGE_JSON, "utf-8")
+    const pkg = JSON.parse(raw) as { dependencies?: Record<string, string> }
+    pkg.dependencies = pkg.dependencies ?? {}
+    let changed = false
+    if (!pkg.dependencies[V1_DEP]) { pkg.dependencies[V1_DEP] = V1_DEP_RANGE; changed = true }
+    if (!pkg.dependencies[V2_DEP]) { pkg.dependencies[V2_DEP] = V2_DEP_RANGE; changed = true }
+    if (changed) {
+      await writeFile(PROJECT_PACKAGE_JSON, JSON.stringify(pkg, null, 2) + "\n")
+      success(`Updated ${PROJECT_PACKAGE_JSON} with dual plugin deps`)
+    }
+  } catch {
+    warn(`Could not update ${PROJECT_PACKAGE_JSON}, leaving untouched.`)
   }
 }
 
 async function addToConfig(configPath: string) {
   await mkdir(dirname(configPath), { recursive: true })
   let cfg: Record<string, unknown> = {}
-  try { cfg = JSON.parse(await readFile(configPath, "utf-8")) } catch {}
-  const plugins: string[] = (cfg.plugin as string[]) ?? []
-  if (plugins.includes(PKG_NAME)) {
+  try {
+    const raw = await readFile(configPath, "utf-8")
+    try { cfg = JSON.parse(raw) } catch { cfg = JSON.parse(stripJsonc(raw)) }
+  } catch {}
+  let changed = false
+  for (const key of ["plugin", "plugins"] as const) {
+    const list = Array.isArray(cfg[key]) ? [...(cfg[key] as unknown[])] : []
+    if (!list.some(configEntryMatches)) {
+      list.push(PKG_NAME)
+      cfg[key] = list
+      changed = true
+    }
+  }
+  if (!changed) {
     warn(`"${PKG_NAME}" already listed in ${configPath}`)
     return
   }
-  cfg.plugin = [...plugins, PKG_NAME]
   await writeFile(configPath, JSON.stringify(cfg, null, 2) + "\n")
-  success(`Added "${PKG_NAME}" to ${configPath}`)
+  success(`Added "${PKG_NAME}" to ${configPath} (plugin + plugins)`)
 }
 
 export type RefreshInput = {
@@ -152,6 +261,7 @@ export type RefreshInput = {
   registryFile: string
   legacyFiles: string[]
   cacheDir: string
+  cacheDirs?: string[]
   configRegistered: boolean
 }
 
@@ -188,14 +298,24 @@ export async function refreshPlugin(input: RefreshInput): Promise<RefreshResult>
     await copyFile(input.source, p)
     next.push({ type: "file", path: p, checksum: await sha256File(p) })
     refreshed.push(p)
+    const root = projectRootForPluginFile(p)
+    if (root) {
+      const pkgPath = join(root, ".opencode", "package.json")
+      if (await fileExists(pkgPath)) await ensureDualDeps(pkgPath)
+    }
   }
 
   const configFound = input.configRegistered || cacheTracked
   const anyFile = refreshed.length > 0
   let clearedCache = false
-  if ((anyFile || configFound) && await fileExists(input.cacheDir)) {
-    await rm(input.cacheDir, { recursive: true, force: true })
-    clearedCache = true
+  const cacheDirs = [input.cacheDir, ...(input.cacheDirs ?? [])]
+  if (anyFile || configFound) {
+    for (const dir of cacheDirs) {
+      if (await fileExists(dir)) {
+        await rm(dir, { recursive: true, force: true })
+        clearedCache = true
+      }
+    }
   }
 
   if (configFound) next.push({ type: "cache" })
@@ -232,13 +352,13 @@ async function runRefresh() {
   console.log("")
   log("opencode-new-thread refresh")
   rule()
-  const configRegistered =
-    await pluginInConfig(GLOBAL_CONFIG) || await pluginInConfig(PROJECT_CONFIG)
+  const configRegistered = await pluginInAnyConfig()
   const res = await refreshPlugin({
     source: PLUGIN_SOURCE,
     registryFile: REGISTRY_FILE,
-    legacyFiles: [join(GLOBAL_PLUGINS_DIR, "new-thread.ts"), PROJECT_PLUGIN_FILE],
+    legacyFiles: legacyPluginFiles(),
     cacheDir: CACHE_PKG_DIR,
+    cacheDirs: [join(CACHE_NODE_MODULES_DIR, PKG_NAME)],
     configRegistered,
   })
   for (const p of res.refreshed) success(`Updated ${p}`)
@@ -255,7 +375,7 @@ async function runUninstall() {
   rule()
   const res = await uninstallPlugin({
     registryFile: REGISTRY_FILE,
-    legacyFiles: [join(GLOBAL_PLUGINS_DIR, "new-thread.ts"), PROJECT_PLUGIN_FILE],
+    legacyFiles: legacyPluginFiles(),
   })
   for (const p of res.removed) success(`Removed ${p}`)
   if (!res.removed.length) log("No plugin files found to remove.")
@@ -296,7 +416,7 @@ async function main() {
     },
     {
       n: 2, v: "project-file", label: "Copy to this project's plugins dir (.opencode/plugins/)",
-      async warnIfExists() { return fileExists(PROJECT_PLUGIN_FILE) },
+      async warnIfExists() { return (await fileExists(PROJECT_PLUGIN_FILE)) || (await fileExists(PROJECT_PLUGIN_FILE_SINGULAR)) },
       async install() {
         if (await copyPluginTo(PROJECT_PLUGIN_FILE)) {
           await ensureProjectPackageJson()
